@@ -1,18 +1,36 @@
 #ifndef UNICODE
 #define UNICODE
 #endif 
-
+#include "wallpaper-eng-clone.h"
+#include <commctrl.h>
 #include <iostream>
 #include <windows.h>
 #include <tchar.h>
+#include <shobjidl.h>  // for COM
 
+void opendabox(HWND hwnd);
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+    HWND hButton;
+    static AppState* appState = nullptr;
     switch (uMsg)
     {
+    case WM_CREATE:
+        hButton = CreateWindowEx(
+            0, L"BUTTON", L"Open File",
+            WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+            320, 10, 100, 25,
+            hwnd, (HMENU)1, ((LPCREATESTRUCT)lParam)->hInstance, NULL
+        );
+        appState = new AppState(L"appsettings.ini");
+        appState->RestoreWindowState(hwnd);
+        return 0;
     case WM_CLOSE:
         if (MessageBox(hwnd, L"Really quit?", L"My application", MB_OKCANCEL) == IDOK)
         {
+            if (appState) {
+                appState->SaveWindowState(hwnd);
+            }
             DestroyWindow(hwnd);
             PostQuitMessage(0);
         }
@@ -20,6 +38,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             MessageBox(hwnd, L"You are a really funny person ngl", L"My app ofc", MB_OKCANCEL);
         }
         return 0;
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == 1) { // Button click
+            opendabox(hwnd);
+        }
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
@@ -47,7 +70,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     {
         std::cerr << "Failed to retrieve current wallpaper." << std::endl;
     }
-
+    
+   
     // Register the window class.
     const wchar_t CLASS_NAME[] = L"Sample Window Class";
 
@@ -60,7 +84,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     RegisterClass(&wc);
 
     // Create the window.
-    HWND hwnd = CreateWindowEx(
+     HWND hwnd = CreateWindowEx(
         0,                              // Optional window styles.
         CLASS_NAME,                     // Window class
         L"Learn to Program Windows",    // Window text
@@ -75,12 +99,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         NULL        // Additional application data
     );
 
+
     if (hwnd == NULL)
     {
         return 0;
     }
 
     ShowWindow(hwnd, nCmdShow);
+    UpdateWindow(hwnd);
 
     // Message loop
     MSG msg;
@@ -91,4 +117,36 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     }
 
     return 0;
+}
+
+void opendabox(HWND hwnd) {
+    HRESULT hr;
+    //Intializing the COM Library
+    hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);  // has to be null always
+    if (SUCCEEDED(hr)) {
+        IFileOpenDialog* pFileOpen;
+        hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
+        if (SUCCEEDED(hr)) {
+            // To show the box
+            hr = pFileOpen->Show(hwnd);
+
+            // to get file name from box
+            if (SUCCEEDED(hr)) {
+                IShellItem* pItem;
+                hr = pFileOpen->GetResult(&pItem);
+                if (SUCCEEDED(hr)) {
+                    PWSTR pszFilePath;
+                    hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+                    if (SUCCEEDED(hr)) {
+                        MessageBoxW(NULL, pszFilePath, L"File Path:", MB_OK);
+                        CoTaskMemFree(pszFilePath);
+                    }
+                    pItem->Release();
+                }
+                pFileOpen->Release();
+            }
+            CoUninitialize();
+        }
+    }
+
 }
