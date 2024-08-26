@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\Arjun Prinjha\Desktop\Wallpaper Engine clone\wallpaper-eng-clone\wallpaper-eng-clone.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Arjun Prinjha\Desktop\Wallpaper Engine clone\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{141A1EE6-E037-3B50-B2A1-154C54A4EFEE}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

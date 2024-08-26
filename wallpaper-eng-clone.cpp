@@ -7,8 +7,10 @@
 #include <windows.h>
 #include <tchar.h>
 #include <shobjidl.h>  // for COM
+
 void ChangeUserDesktopWallpaper(PWSTR wallpaper);
 void opendabox(HWND hwnd);
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     HWND hButton;
@@ -19,7 +21,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         hButton = CreateWindowEx(
             0, L"BUTTON", L"Open File",
             WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-            320, 10, 100, 25,
+            300, 300, 100, 25,                                               // xaxis, yaxis , width_box, height_box
             hwnd, (HMENU)1, ((LPCREATESTRUCT)lParam)->hInstance, NULL
         );
         appState = new AppState(L"appsettings.ini");
@@ -144,7 +146,6 @@ void opendabox(HWND hwnd) {
                     hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
                     if (SUCCEEDED(hr)) {
                         ChangeUserDesktopWallpaper(pszFilePath);
-                        MessageBoxW(NULL, pszFilePath, L"File Path:", MB_OK);
                         CoTaskMemFree(pszFilePath);
                     }
                     pItem->Release();

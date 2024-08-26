@@ -1,0 +1,3 @@
+C:/Users/Arjun Prinjha/Desktop/Wallpaper Engine clone/wallpaper-eng-clone/CMakeFiles/MyProject.dir
+C:/Users/Arjun Prinjha/Desktop/Wallpaper Engine clone/wallpaper-eng-clone/CMakeFiles/ALL_BUILD.dir
+C:/Users/Arjun Prinjha/Desktop/Wallpaper Engine clone/wallpaper-eng-clone/CMakeFiles/ZERO_CHECK.dir

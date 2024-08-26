@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Arjun Prinjha\Desktop\Wallpaper Engine clone\wallpaper-eng-clone\CMakeFiles\9e74eb4e15c206e77e0f915af0a0e3d3\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{20314B7E-A748-3A14-8668-011D7FB354B9}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
