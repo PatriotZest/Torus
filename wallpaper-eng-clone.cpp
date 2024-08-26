@@ -7,7 +7,7 @@
 #include <windows.h>
 #include <tchar.h>
 #include <shobjidl.h>  // for COM
-
+void ChangeUserDesktopWallpaper(PWSTR wallpaper);
 void opendabox(HWND hwnd);
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -121,11 +121,16 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
 void opendabox(HWND hwnd) {
     HRESULT hr;
+
+
     //Intializing the COM Library
     hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);  // has to be null always
+    
     if (SUCCEEDED(hr)) {
         IFileOpenDialog* pFileOpen;
         hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
+        
+        
         if (SUCCEEDED(hr)) {
             // To show the box
             hr = pFileOpen->Show(hwnd);
@@ -138,6 +143,7 @@ void opendabox(HWND hwnd) {
                     PWSTR pszFilePath;
                     hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
                     if (SUCCEEDED(hr)) {
+                        ChangeUserDesktopWallpaper(pszFilePath);
                         MessageBoxW(NULL, pszFilePath, L"File Path:", MB_OK);
                         CoTaskMemFree(pszFilePath);
                     }
@@ -147,6 +153,53 @@ void opendabox(HWND hwnd) {
             }
             CoUninitialize();
         }
+    }
+
+}
+
+HWND GetDesktopWindowHandle() {
+    HWND progman = FindWindow(L"Progman", NULL);
+    HWND desktop = NULL;
+
+    // Send message to Progman to spawn a WorkerW window
+    SendMessageTimeout(progman, 0x052C, 0, 0, SMTO_NORMAL, 1000, NULL);
+
+    // Enumerate through WorkerW windows to find the one that has a child of SHELLDLL_DefView
+    HWND workerw = NULL;
+    EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
+        HWND p = FindWindowEx(hwnd, NULL, L"SHELLDLL_DefView", NULL);
+        if (p != NULL) {
+            *(HWND*)lParam = FindWindowEx(NULL, hwnd, L"WorkerW", NULL);
+        }
+        return true;
+        }, (LPARAM)&workerw);
+
+    if (workerw != NULL) {
+        desktop = workerw;
+    }
+
+    return desktop;
+}
+
+void ChangeUserDesktopWallpaper(PWSTR wallpaper) {
+   
+    const wchar_t* wallpaperPath = wallpaper;
+
+    // Change the wallpaper
+    BOOL result = SystemParametersInfoW(
+        SPI_SETDESKWALLPAPER,  // Action to perform
+        0,                     // Not used, should be 0
+        (void*)wallpaperPath,  // Path to wallpaper
+        SPIF_UPDATEINIFILE | SPIF_SENDCHANGE  // Flags to update and notify
+    );
+
+    if (result)
+    {
+        MessageBox(NULL, L"Wallpaper changed successfully!", L"Success", MB_OK);
+    }
+    else
+    {
+        MessageBox(NULL, L"Failed to change wallpaper.", L"Error", MB_OK | MB_ICONERROR);
     }
 
 }
