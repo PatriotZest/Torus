@@ -7,11 +7,15 @@
 #include <windows.h>
 #include <tchar.h>
 #include <shobjidl.h>  // for COM
-
+#include <mutex>
 
 #include <thread>
 #include <chrono>
-
+HINSTANCE hInstance;
+HINSTANCE hPrevInstance;
+PWSTR pCmdLine;
+int nCmdShow;
+HWND hwnd;
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -19,7 +23,6 @@ extern "C" {
 #include <libswscale/swscale.h>
 #include <libavutil/imgutils.h>
 }
-
 
 AVFormatContext* pFormatCtx = nullptr;
 AVCodecContext* pCodecCtx = nullptr;
@@ -30,6 +33,7 @@ int videoStreamIndex = -1;
 HBITMAP hBitmap = nullptr;
 BITMAPINFO bitmapInfo = { 0 };
 
+void OpenVideoWindow(HWND hwnd, HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow);
 void DecodeAndRenderVideo(const std::string& filename, HWND hwnd);
 void ChangeUserDesktopWallpaper(PWSTR wallpaper);
 void opendabox(HWND hwnd);
@@ -45,12 +49,30 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         hButton = CreateWindowEx(
             0, L"BUTTON", L"Open File",
             WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-            300, 300, 100, 25,                                               // xaxis, yaxis , width_box, height_box
+            300, 300, 100, 25, // x, y, width, height
             hwnd, (HMENU)1, ((LPCREATESTRUCT)lParam)->hInstance, NULL
         );
+
+        if (hButton == NULL) {
+            MessageBox(hwnd, L"Failed to create 'Open File' button", L"Error", MB_OK | MB_ICONERROR);
+        }
+
+        hButton = CreateWindowEx(
+            0, L"BUTTON", L"Open Video",
+            WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+            600, 600, 100, 25, // x, y, width, height
+            hwnd, (HMENU)2, ((LPCREATESTRUCT)lParam)->hInstance, NULL
+        );
+
+        if (hButton == NULL) {
+            MessageBox(hwnd, L"Failed to create 'Open Video' button", L"Error", MB_OK | MB_ICONERROR);
+        }
+
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)((LPCREATESTRUCT)lParam)->hInstance);
         appState = new AppState(L"appsettings.ini");
         appState->RestoreWindowState(hwnd);
         return 0;
+
     case WM_CLOSE:
         if (MessageBox(hwnd, L"Really quit?", L"My application", MB_OKCANCEL) == IDOK)
         {
@@ -66,18 +88,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
 
     case WM_COMMAND:
-        if (LOWORD(wParam) == 1) { // Button click
+        if (LOWORD(wParam) == 2) { // Open File button
             opendabox(hwnd);
         }
-    case WM_PAINT:
-    {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
-        // Here you can add code to paint your window
-        FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
-        EndPaint(hwnd, &ps);
-    }
-    return 0;
+        else if (LOWORD(wParam) == 1) { // Open Video button
+            HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+            OpenVideoWindow(hwnd, hInstance, hPrevInstance, pCmdLine, nCmdShow);
+        }
+        return 0;
+
     default:
         return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
@@ -85,6 +104,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
+  
     char wallpaperPath[MAX_PATH];
 
     // Get the current desktop wallpaper path
@@ -143,7 +163,38 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     }
     
 }
-void OpenVideoWindow(HWND hwnd,HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
+void VideoThreadFunction(HWND hwnd) {
+    try {
+        DecodeAndRenderVideo("C:/vid.mp4", hwnd);
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+    }
+}
+
+void OpenVideoWindow(HWND hwnd, HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
+    // Clean up any existing resources here if needed
+    if (pCodecCtx) {
+        avcodec_free_context(&pCodecCtx);
+        pCodecCtx = nullptr;
+    }
+    if (pFrame) {
+        av_frame_free(&pFrame);
+        pFrame = nullptr;
+    }
+    if (pFrameRGB) {
+        av_frame_free(&pFrameRGB);
+        pFrameRGB = nullptr;
+    }
+    if (pFormatCtx) {
+        avformat_close_input(&pFormatCtx);
+        pFormatCtx = nullptr;
+    }
+    if (sws_ctx) {
+        sws_freeContext(sws_ctx);
+        sws_ctx = nullptr;
+    }
+
     WNDCLASS wc = { 0 };
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
@@ -153,26 +204,28 @@ void OpenVideoWindow(HWND hwnd,HINSTANCE hInstance, HINSTANCE hPrevInstance, PWS
     RegisterClass(&wc);
     hwnd = CreateWindowEx(0, TITLE, OTHERTITLE, WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, NULL, NULL, hInstance, NULL);
+    if (hwnd == NULL) {
+        std::cerr << "Failed to create video window." << std::endl;
+        return;
+    }
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
 
-    // Load and play video
-    DecodeAndRenderVideo("path/to/your/video.mp4",hwnd);
+    std::cout << "Starting video thread..." << std::endl;
+    std::thread videoThread(DecodeAndRenderVideo, "C:/Users/damn/Downloads/frankjavcee - simpsonwave1995(slowed + reverb).mp4", hwnd);
+    videoThread.detach();
 
-    // Message loop
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
-    // Cleanup
-    av_frame_free(&pFrame);
-    av_frame_free(&pFrameRGB);
-    avcodec_free_context(&pCodecCtx);
-    avformat_close_input(&pFormatCtx);
-    sws_freeContext(sws_ctx);
 }
+
+
+
+
+
 void opendabox(HWND hwnd) {
     HRESULT hr;
 
@@ -210,6 +263,10 @@ void opendabox(HWND hwnd) {
 
 }
 
+
+
+
+
 HWND GetDesktopWindowHandle() {
     HWND progman = FindWindow(L"Progman", NULL);
     HWND desktop = NULL;
@@ -234,6 +291,10 @@ HWND GetDesktopWindowHandle() {
     return desktop;
 }
 
+
+
+
+
 void ChangeUserDesktopWallpaper(PWSTR wallpaper) {
    
     const wchar_t* wallpaperPath = wallpaper;
@@ -257,20 +318,23 @@ void ChangeUserDesktopWallpaper(PWSTR wallpaper) {
 
 }
 
+// ----------------------------------------------------------------------------------------
+std::mutex videoMutex;
 void DecodeAndRenderVideo(const std::string& filename, HWND hwnd) {
-    // Open video file
+    std::lock_guard<std::mutex> lock(videoMutex);
+    std::cout << "Opening video file..." << std::endl;
     if (avformat_open_input(&pFormatCtx, filename.c_str(), NULL, NULL) != 0) {
         std::cerr << "Couldn't open video file" << std::endl;
         return;
     }
 
-    // Retrieve stream information
+    std::cout << "Retrieving stream information..." << std::endl;
     if (avformat_find_stream_info(pFormatCtx, NULL) < 0) {
         std::cerr << "Couldn't find stream information" << std::endl;
         return;
     }
 
-    // Find the first video stream
+    std::cout << "Finding video stream..." << std::endl;
     for (unsigned int i = 0; i < pFormatCtx->nb_streams; ++i) {
         if (pFormatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
             videoStreamIndex = i;
@@ -283,13 +347,12 @@ void DecodeAndRenderVideo(const std::string& filename, HWND hwnd) {
         return;
     }
 
-    // Get a pointer to the codec context for the video stream
+    std::cout << "Initializing codec context..." << std::endl;
     AVCodecParameters* pCodecParams = pFormatCtx->streams[videoStreamIndex]->codecpar;
     const AVCodec* pCodec = avcodec_find_decoder(pCodecParams->codec_id);
     pCodecCtx = avcodec_alloc_context3(pCodec);
     avcodec_parameters_to_context(pCodecCtx, pCodecParams);
 
-    // Open codec
     if (avcodec_open2(pCodecCtx, pCodec, NULL) < 0) {
         std::cerr << "Couldn't open codec" << std::endl;
         return;
@@ -303,23 +366,18 @@ void DecodeAndRenderVideo(const std::string& filename, HWND hwnd) {
         return;
     }
 
-    // Determine required buffer size and allocate buffer
     int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height, 1);
     uint8_t* buffer = (uint8_t*)av_malloc(numBytes * sizeof(uint8_t));
-
-    // Assign appropriate parts of buffer to image planes in pFrameRGB
     av_image_fill_arrays(pFrameRGB->data, pFrameRGB->linesize, buffer, AV_PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height, 1);
 
-    // Initialize SwsContext for converting the image from its native format to RGB
     sws_ctx = sws_getContext(
         pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt,
         pCodecCtx->width, pCodecCtx->height, AV_PIX_FMT_RGB24,
         SWS_BILINEAR, NULL, NULL, NULL);
 
-    // Initialize BITMAPINFO structure for GDI rendering
     bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bitmapInfo.bmiHeader.biWidth = pCodecCtx->width;
-    bitmapInfo.bmiHeader.biHeight = -pCodecCtx->height; // Negative height to indicate a top-down DIB
+    bitmapInfo.bmiHeader.biHeight = -pCodecCtx->height;
     bitmapInfo.bmiHeader.biPlanes = 1;
     bitmapInfo.bmiHeader.biBitCount = 24;
     bitmapInfo.bmiHeader.biCompression = BI_RGB;
@@ -329,19 +387,16 @@ void DecodeAndRenderVideo(const std::string& filename, HWND hwnd) {
     bitmapInfo.bmiHeader.biClrUsed = 0;
     bitmapInfo.bmiHeader.biClrImportant = 0;
 
-    // Read frames and render
+    std::cout << "Decoding and rendering video frames..." << std::endl;
     AVPacket packet;
     while (av_read_frame(pFormatCtx, &packet) >= 0) {
         if (packet.stream_index == videoStreamIndex) {
-            // Send the packet to the decoder
             if (avcodec_send_packet(pCodecCtx, &packet) < 0) {
                 std::cerr << "Error sending packet for decoding" << std::endl;
                 continue;
             }
 
-            // Receive the frame from the decoder
             while (avcodec_receive_frame(pCodecCtx, pFrame) >= 0) {
-                // Convert the frame to RGB
                 sws_scale(
                     sws_ctx,
                     pFrame->data,
@@ -351,26 +406,29 @@ void DecodeAndRenderVideo(const std::string& filename, HWND hwnd) {
                     pFrameRGB->data,
                     pFrameRGB->linesize);
 
-                // Get device context and render the frame
                 HDC hdc = GetDC(hwnd);
                 RenderFrame(hdc, pFrameRGB);
                 ReleaseDC(hwnd, hdc);
 
-                // Sleep to simulate frame rate (e.g., 40 ms for ~25 FPS video)
                 std::this_thread::sleep_for(std::chrono::milliseconds(40));
             }
         }
 
-        av_packet_unref(&packet);  // Unreference the packet for reuse
+        av_packet_unref(&packet);
     }
 
-    // Cleanup
+    std::cout << "Cleaning up..." << std::endl;
     av_frame_free(&pFrame);
     av_frame_free(&pFrameRGB);
     avcodec_free_context(&pCodecCtx);
     avformat_close_input(&pFormatCtx);
     sws_freeContext(sws_ctx);
 }
+
+
+
+
+
 
 void RenderFrame(HDC hdc, AVFrame* frame) {
     // Render the RGB frame to the window using GDI
