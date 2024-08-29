@@ -8,8 +8,32 @@
 #include <tchar.h>
 #include <shobjidl.h>  // for COM
 
+
+#include <thread>
+#include <chrono>
+
+
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+#include <libavutil/imgutils.h>
+}
+
+
+AVFormatContext* pFormatCtx = nullptr;
+AVCodecContext* pCodecCtx = nullptr;
+AVFrame* pFrame = nullptr;
+AVFrame* pFrameRGB = nullptr;
+SwsContext* sws_ctx = nullptr;
+int videoStreamIndex = -1;
+HBITMAP hBitmap = nullptr;
+BITMAPINFO bitmapInfo = { 0 };
+
+void DecodeAndRenderVideo(const std::string& filename, HWND hwnd);
 void ChangeUserDesktopWallpaper(PWSTR wallpaper);
 void opendabox(HWND hwnd);
+void RenderFrame(HDC hdc, AVFrame* frame);
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -117,10 +141,38 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
-    return 0;
+    
 }
+void OpenVideoWindow(HWND hwnd,HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
+    WNDCLASS wc = { 0 };
+    wc.lpfnWndProc = WindowProc;
+    wc.hInstance = hInstance;
+    const wchar_t TITLE[] = L"Sample Window Class";
+    wc.lpszClassName = TITLE;
+    const wchar_t OTHERTITLE[] = L"FFMPEG";
+    RegisterClass(&wc);
+    hwnd = CreateWindowEx(0, TITLE, OTHERTITLE, WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT, CW_USEDEFAULT, 800, 600, NULL, NULL, hInstance, NULL);
+    ShowWindow(hwnd, nCmdShow);
+    UpdateWindow(hwnd);
 
+    // Load and play video
+    DecodeAndRenderVideo("path/to/your/video.mp4",hwnd);
+
+    // Message loop
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    // Cleanup
+    av_frame_free(&pFrame);
+    av_frame_free(&pFrameRGB);
+    avcodec_free_context(&pCodecCtx);
+    avformat_close_input(&pFormatCtx);
+    sws_freeContext(sws_ctx);
+}
 void opendabox(HWND hwnd) {
     HRESULT hr;
 
@@ -204,3 +256,132 @@ void ChangeUserDesktopWallpaper(PWSTR wallpaper) {
     }
 
 }
+
+void DecodeAndRenderVideo(const std::string& filename, HWND hwnd) {
+    // Open video file
+    if (avformat_open_input(&pFormatCtx, filename.c_str(), NULL, NULL) != 0) {
+        std::cerr << "Couldn't open video file" << std::endl;
+        return;
+    }
+
+    // Retrieve stream information
+    if (avformat_find_stream_info(pFormatCtx, NULL) < 0) {
+        std::cerr << "Couldn't find stream information" << std::endl;
+        return;
+    }
+
+    // Find the first video stream
+    for (unsigned int i = 0; i < pFormatCtx->nb_streams; ++i) {
+        if (pFormatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            videoStreamIndex = i;
+            break;
+        }
+    }
+
+    if (videoStreamIndex == -1) {
+        std::cerr << "Couldn't find a video stream" << std::endl;
+        return;
+    }
+
+    // Get a pointer to the codec context for the video stream
+    AVCodecParameters* pCodecParams = pFormatCtx->streams[videoStreamIndex]->codecpar;
+    const AVCodec* pCodec = avcodec_find_decoder(pCodecParams->codec_id);
+    pCodecCtx = avcodec_alloc_context3(pCodec);
+    avcodec_parameters_to_context(pCodecCtx, pCodecParams);
+
+    // Open codec
+    if (avcodec_open2(pCodecCtx, pCodec, NULL) < 0) {
+        std::cerr << "Couldn't open codec" << std::endl;
+        return;
+    }
+
+    pFrame = av_frame_alloc();
+    pFrameRGB = av_frame_alloc();
+
+    if (!pFrame || !pFrameRGB) {
+        std::cerr << "Couldn't allocate video frame" << std::endl;
+        return;
+    }
+
+    // Determine required buffer size and allocate buffer
+    int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height, 1);
+    uint8_t* buffer = (uint8_t*)av_malloc(numBytes * sizeof(uint8_t));
+
+    // Assign appropriate parts of buffer to image planes in pFrameRGB
+    av_image_fill_arrays(pFrameRGB->data, pFrameRGB->linesize, buffer, AV_PIX_FMT_RGB24, pCodecCtx->width, pCodecCtx->height, 1);
+
+    // Initialize SwsContext for converting the image from its native format to RGB
+    sws_ctx = sws_getContext(
+        pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt,
+        pCodecCtx->width, pCodecCtx->height, AV_PIX_FMT_RGB24,
+        SWS_BILINEAR, NULL, NULL, NULL);
+
+    // Initialize BITMAPINFO structure for GDI rendering
+    bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bitmapInfo.bmiHeader.biWidth = pCodecCtx->width;
+    bitmapInfo.bmiHeader.biHeight = -pCodecCtx->height; // Negative height to indicate a top-down DIB
+    bitmapInfo.bmiHeader.biPlanes = 1;
+    bitmapInfo.bmiHeader.biBitCount = 24;
+    bitmapInfo.bmiHeader.biCompression = BI_RGB;
+    bitmapInfo.bmiHeader.biSizeImage = 0;
+    bitmapInfo.bmiHeader.biXPelsPerMeter = 0;
+    bitmapInfo.bmiHeader.biYPelsPerMeter = 0;
+    bitmapInfo.bmiHeader.biClrUsed = 0;
+    bitmapInfo.bmiHeader.biClrImportant = 0;
+
+    // Read frames and render
+    AVPacket packet;
+    while (av_read_frame(pFormatCtx, &packet) >= 0) {
+        if (packet.stream_index == videoStreamIndex) {
+            // Send the packet to the decoder
+            if (avcodec_send_packet(pCodecCtx, &packet) < 0) {
+                std::cerr << "Error sending packet for decoding" << std::endl;
+                continue;
+            }
+
+            // Receive the frame from the decoder
+            while (avcodec_receive_frame(pCodecCtx, pFrame) >= 0) {
+                // Convert the frame to RGB
+                sws_scale(
+                    sws_ctx,
+                    pFrame->data,
+                    pFrame->linesize,
+                    0,
+                    pCodecCtx->height,
+                    pFrameRGB->data,
+                    pFrameRGB->linesize);
+
+                // Get device context and render the frame
+                HDC hdc = GetDC(hwnd);
+                RenderFrame(hdc, pFrameRGB);
+                ReleaseDC(hwnd, hdc);
+
+                // Sleep to simulate frame rate (e.g., 40 ms for ~25 FPS video)
+                std::this_thread::sleep_for(std::chrono::milliseconds(40));
+            }
+        }
+
+        av_packet_unref(&packet);  // Unreference the packet for reuse
+    }
+
+    // Cleanup
+    av_frame_free(&pFrame);
+    av_frame_free(&pFrameRGB);
+    avcodec_free_context(&pCodecCtx);
+    avformat_close_input(&pFormatCtx);
+    sws_freeContext(sws_ctx);
+}
+
+void RenderFrame(HDC hdc, AVFrame* frame) {
+    // Render the RGB frame to the window using GDI
+    SetDIBitsToDevice(
+        hdc,
+        0, 0,                         // X, Y position on the window
+        pCodecCtx->width, pCodecCtx->height, // Width and height of the image
+        0, 0,                         // X, Y position on the image (top-left corner)
+        0, pCodecCtx->height,         // Start scan line, number of scan lines
+        frame->data[0],               // Pointer to the image bits
+        &bitmapInfo,                  // Pointer to the BITMAPINFO structure
+        DIB_RGB_COLORS);              // Use RGB for the color data
+}
+
