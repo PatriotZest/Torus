@@ -15,7 +15,7 @@
 
 
 void sus();
-void ChangeUserDesktopWallpaper(PWSTR wallpaper);
+void ChangeUserDesktopWallpaper();
 void opendabox(HWND hwnd);
 void RenderFrame(HDC hdc, AVFrame* frame);
 
@@ -73,10 +73,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == 1) { // Button click
             sus();
         }
-        else if (LOWORD(wParam) == 1) { // Open Video button
-            HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-            OpenVideoWindow(hwnd, hInstance, hPrevInstance, pCmdLine, nCmdShow);
-        }
         return 0;
 
     default:
@@ -105,7 +101,7 @@ void sus() {
 }
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
-
+    ChangeUserDesktopWallpaper();
     char wallpaperPath[MAX_PATH];
 
     // Get the current desktop wallpaper path
@@ -164,18 +160,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     }
     
 }
-void VideoThreadFunction(HWND hwnd) {
-    try {
-        DecodeAndRenderVideo("C:/vid.mp4", hwnd);
-    }
-    catch (const std::exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-    }
-}
-
-    return 0;
-
-}
 
 
 
@@ -205,7 +189,7 @@ void opendabox(HWND hwnd) {
                     PWSTR pszFilePath;
                     hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
                     if (SUCCEEDED(hr)) {
-                        ChangeUserDesktopWallpaper(pszFilePath);
+                        ChangeUserDesktopWallpaper();
                         CoTaskMemFree(pszFilePath);
                     }
                     pItem->Release();
@@ -250,29 +234,43 @@ HWND GetDesktopWindowHandle() {
 
 
 
-void ChangeUserDesktopWallpaper(PWSTR wallpaper) {
+void ChangeUserDesktopWallpaper() {
    
+    
     const char* narrowPath = "C:/logs/frame_0001.png";
-    wchar_t widePath[MAX_PATH];
-    MultiByteToWideChar(CP_ACP, 0, narrowPath, -1, widePath, MAX_PATH);
+    for (int i{ 1 }; i < 873; i++) {
+        if (i < 10) {
+            std::sprintf(narrowPath, "C:/logs/frame_000%d.png", i);
+        }
+        else if (i < 100) {
+            std::sprintf(narrowPath, "C:/logs/frame_00%d.png", i);
+        }
+        else {
+            std::sprintf(narrowPath, "C:/logs/frame_0%d.png", i);
+        }
+        
+        wchar_t widePath[MAX_PATH];
+        MultiByteToWideChar(CP_ACP, 0, narrowPath, -1, widePath, MAX_PATH);
 
-    wchar_t* wallpaperPath = widePath;
+        wchar_t* wallpaperPath = widePath;
 
-    // Change the wallpaper
-    BOOL result = SystemParametersInfoW(
-        SPI_SETDESKWALLPAPER,  // Action to perform
-        0,                     // Not used, should be 0
-        (void*)wallpaperPath,  // Path to wallpaper
-        SPIF_UPDATEINIFILE | SPIF_SENDCHANGE  // Flags to update and notify
-    );
+        // Change the wallpaper
+        BOOL result = SystemParametersInfoW(
+            SPI_SETDESKWALLPAPER,  // Action to perform
+            0,                     // Not used, should be 0
+            (void*)wallpaperPath,  // Path to wallpaper
+            SPIF_UPDATEINIFILE | SPIF_SENDCHANGE  // Flags to update and notify
+        );
 
-    if (result)
-    {
-        MessageBox(NULL, L"Wallpaper changed successfully!", L"Success", MB_OK);
+        if (result)
+        {
+            MessageBox(NULL, L"Wallpaper changed successfully!", L"Success", MB_OK);
+        }
+        else
+        {
+            MessageBox(NULL, L"Failed to change wallpaper.", L"Error", MB_OK | MB_ICONERROR);
+        }
+
     }
-    else
-    {
-        MessageBox(NULL, L"Failed to change wallpaper.", L"Error", MB_OK | MB_ICONERROR);
-    }
-
 }
+
