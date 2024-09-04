@@ -7,9 +7,18 @@
 #include <windows.h>
 #include <tchar.h>
 #include <shobjidl.h>  // for COM
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+#include <cstdlib>
 
+
+
+void sus();
 void ChangeUserDesktopWallpaper(PWSTR wallpaper);
 void opendabox(HWND hwnd);
+
+
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -43,7 +52,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
     case WM_COMMAND:
         if (LOWORD(wParam) == 1) { // Button click
-            opendabox(hwnd);
+            sus();
         }
     case WM_PAINT:
     {
@@ -59,8 +68,28 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
 }
 
+void sus() {
+    std::string videoFilePath = "C:/beta.mp4";
+    std::string outputFramePath = "C:/logs/frame_%04d.png";
+
+    // Construct the FFmpeg command with the bundled FFmpeg executable
+    std::string ffmpegPath = "C:/ffmpeg-2024-08-26-git-98610fe95f-full_build/bin/ffmpeg.exe"; // Adjust for your platform (e.g., ffmpeg.exe on Windows)
+    std::string command = ffmpegPath + " -i " + videoFilePath + " " + outputFramePath;
+
+    // Execute the command
+    int result = std::system(command.c_str());
+
+    // Check the result
+    if (result == 0) {
+        std::cout << "Frames extracted successfully!" << std::endl;
+    }
+    else {
+        std::cerr << "Failed to extract frames." << std::endl;
+    }
+}
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
+
     char wallpaperPath[MAX_PATH];
 
     // Get the current desktop wallpaper path
@@ -119,6 +148,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     }
 
     return 0;
+
 }
 
 void opendabox(HWND hwnd) {
@@ -184,7 +214,11 @@ HWND GetDesktopWindowHandle() {
 
 void ChangeUserDesktopWallpaper(PWSTR wallpaper) {
    
-    const wchar_t* wallpaperPath = wallpaper;
+    const char* narrowPath = "C:/logs/frame_0001.png";
+    wchar_t widePath[MAX_PATH];
+    MultiByteToWideChar(CP_ACP, 0, narrowPath, -1, widePath, MAX_PATH);
+
+    wchar_t* wallpaperPath = widePath;
 
     // Change the wallpaper
     BOOL result = SystemParametersInfoW(
