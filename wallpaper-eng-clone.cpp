@@ -8,9 +8,6 @@
 #include <windows.h>
 #include <tchar.h>
 #include <shobjidl.h>  // for COM
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libswscale/swscale.h>
 #include <cstdlib>
 #include <chrono>
 #include <thread>
@@ -18,7 +15,6 @@
 void sus();
 void ChangeUserDesktopWallpaper();
 void opendabox(HWND hwnd);
-void RenderFrame(HDC hdc, AVFrame* frame);
 
 
 
@@ -240,7 +236,7 @@ void ChangeUserDesktopWallpaper() {
     //    }
         std::cout << "YO";
         // Sleep to control frame rate: 1000 ms / 30 frames = ~33 ms per frame
-        std::this_thread::sleep_for(std::chrono::milliseconds(33));
+       // std::this_thread::sleep_for(std::chrono::milliseconds(33));
     }
 
       //  if (result)

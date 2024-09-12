@@ -296,6 +296,8 @@ MyProject_IS_TOP_LEVEL:STATIC=ON
 //Value Computed by CMake
 MyProject_SOURCE_DIR:STATIC=C:/Users/Arjun Prinjha/Desktop/Wallpaper Engine clone
 
+PKG_CONFIG_EXECUTABLE:STRING=C:/vcpkg/installed/x64-windows/share/ffmpeg/../../../x64-windows/tools/pkgconf/pkgconf.exe
+
 //Automatically copy dependencies into the output directory for
 // executables.
 VCPKG_APPLOCAL_DEPS:BOOL=ON
