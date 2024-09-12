@@ -1,6 +1,7 @@
 #ifndef UNICODE
 #define UNICODE
 #endif 
+#define _CRT_SECURE_NO_WARNINGS
 #include "wallpaper-eng-clone.h"
 #include <commctrl.h>
 #include <iostream>
@@ -11,8 +12,8 @@
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
 #include <cstdlib>
-
-
+#include <chrono>
+#include <thread>
 
 void sus();
 void ChangeUserDesktopWallpaper();
@@ -142,7 +143,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         NULL        // Additional application data
     );
 
-
     if (hwnd == NULL)
     {
         return 0;
@@ -206,39 +206,13 @@ void opendabox(HWND hwnd) {
 
 
 
-HWND GetDesktopWindowHandle() {
-    HWND progman = FindWindow(L"Progman", NULL);
-    HWND desktop = NULL;
-
-    // Send message to Progman to spawn a WorkerW window
-    SendMessageTimeout(progman, 0x052C, 0, 0, SMTO_NORMAL, 1000, NULL);
-
-    // Enumerate through WorkerW windows to find the one that has a child of SHELLDLL_DefView
-    HWND workerw = NULL;
-    EnumWindows([](HWND hwnd, LPARAM lParam) -> BOOL {
-        HWND p = FindWindowEx(hwnd, NULL, L"SHELLDLL_DefView", NULL);
-        if (p != NULL) {
-            *(HWND*)lParam = FindWindowEx(NULL, hwnd, L"WorkerW", NULL);
-        }
-        return true;
-        }, (LPARAM)&workerw);
-
-    if (workerw != NULL) {
-        desktop = workerw;
-    }
-
-    return desktop;
-}
-
-
-
-
-
 void ChangeUserDesktopWallpaper() {
    
     
-    const char* narrowPath = "C:/logs/frame_0001.png";
+    char narrowPath[256];
+
     for (int i{ 1 }; i < 873; i++) {
+        // Format the path for the current frame
         if (i < 10) {
             std::sprintf(narrowPath, "C:/logs/frame_000%d.png", i);
         }
@@ -248,29 +222,35 @@ void ChangeUserDesktopWallpaper() {
         else {
             std::sprintf(narrowPath, "C:/logs/frame_0%d.png", i);
         }
-        
-        wchar_t widePath[MAX_PATH];
-        MultiByteToWideChar(CP_ACP, 0, narrowPath, -1, widePath, MAX_PATH);
 
-        wchar_t* wallpaperPath = widePath;
+        // Convert narrow string to wide string (UTF-16) for Windows API
+      //  wchar_t widePath[MAX_PATH];
+        //MultiByteToWideChar(CP_ACP, 0, narrowPath, -1, widePath, MAX_PATH);
 
         // Change the wallpaper
-        BOOL result = SystemParametersInfoW(
-            SPI_SETDESKWALLPAPER,  // Action to perform
-            0,                     // Not used, should be 0
-            (void*)wallpaperPath,  // Path to wallpaper
-            SPIF_UPDATEINIFILE | SPIF_SENDCHANGE  // Flags to update and notify
-        );
+       // BOOL result = SystemParametersInfoW(
+        //    SPI_SETDESKWALLPAPER,  // Action to perform
+         //   0,                     // Not used, should be 0
+          //  (void*)widePath,       // Path to wallpaper
+           // SPIF_UPDATEINIFILE | SPIF_SENDCHANGE  // Flags to update and notify
+       // );
 
-        if (result)
-        {
-            MessageBox(NULL, L"Wallpaper changed successfully!", L"Success", MB_OK);
-        }
-        else
-        {
-            MessageBox(NULL, L"Failed to change wallpaper.", L"Error", MB_OK | MB_ICONERROR);
-        }
-
+//        if (!result) {
+  //          std::cerr << "Failed to change wallpaper to: " << narrowPath << std::endl;
+    //    }
+        std::cout << "YO";
+        // Sleep to control frame rate: 1000 ms / 30 frames = ~33 ms per frame
+        std::this_thread::sleep_for(std::chrono::milliseconds(33));
     }
+
+      //  if (result)
+       // {
+        //    MessageBox(NULL, L"Wallpaper changed successfully!", L"Success", MB_OK);
+       // }
+       // else
+        //{
+         //   MessageBox(NULL, L"Failed to change wallpaper.", L"Error", MB_OK | MB_ICONERROR);
+       // }
+
 }
 
