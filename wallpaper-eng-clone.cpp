@@ -11,13 +11,16 @@
 #include <cstdlib>
 #include <chrono>
 #include <thread>
+#include <synchapi.h>
 
+void loadImages(HWND hwnd);
 void sus();
 void ChangeUserDesktopWallpaper();
 void opendabox(HWND hwnd);
+void AddImage(HWND hwnd);
 
-
-
+HBITMAP hImage;
+HWND image;
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     HWND hButton;
@@ -39,7 +42,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         hButton = CreateWindowEx(
             0, L"BUTTON", L"Open Video",
             WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-            600, 600, 100, 25, // x, y, width, height
+            0, 0, 100, 25, // x, y, width, height
             hwnd, (HMENU)2, ((LPCREATESTRUCT)lParam)->hInstance, NULL
         );
 
@@ -70,6 +73,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == 1) { // Button click
             sus();
         }
+        if (LOWORD(wParam) == 2) {
+            loadImages(hwnd);
+        }
         return 0;
 
     default:
@@ -77,13 +83,48 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
 }
 
+void loadImages(HWND hwnd) {
+    wchar_t filePath[256]; // Buffer to hold the file path
+    for (int i{ 1 }; i < 873; i++) {
+        if (i < 10) {
+            swprintf(filePath, 256, L"C:/logs/frame_000%d.bmp", i); // Add frame number to path
+        }
+        else if (i < 100) {
+            swprintf(filePath, 256, L"C:/logs/frame_00%d.bmp", i); // Add frame number to path
+        }
+        else {
+            swprintf(filePath, 256, L"C:/logs/frame_0%d.bmp", i); // Add frame number to path
+        }
+
+        hImage = (HBITMAP)LoadImageW(NULL, filePath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+        if (hImage == NULL) {
+            MessageBox(NULL, L"Failed to load image", L"ERROR", MB_OK);
+        }
+        else {
+        AddImage(hwnd);
+            
+        }
+        
+
+    }
+}
+
+
+void AddImage(HWND hwnd) {
+    HWND image = CreateWindowW(L"Static", NULL, WS_VISIBLE | WS_CHILD | SS_BITMAP, 0, 0, 100, 100, hwnd, NULL, NULL, NULL);
+    DWORD sleep = SleepEx(13, FALSE);
+    if (sleep == 0) {
+        SendMessageW(image, STM_SETIMAGE, IMAGE_BITMAP, (LPARAM)hImage);
+    }
+}
+
 void sus() {
     std::string videoFilePath = "C:/beta.mp4";
-    std::string outputFramePath = "C:/logs/frame_%04d.png";
+    std::string outputFramePath = "C:/logs/frame_%04d.bmp";
 
     // Construct the FFmpeg command with the bundled FFmpeg executable
     std::string ffmpegPath = "C:/ffmpeg-2024-08-26-git-98610fe95f-full_build/bin/ffmpeg.exe"; // Adjust for your platform (e.g., ffmpeg.exe on Windows)
-    std::string command = ffmpegPath + " -i " + videoFilePath + " " + outputFramePath;
+    std::string command = ffmpegPath + " -i " + videoFilePath + " " + outputFramePath;     
 
     // Execute the command
     int result = std::system(command.c_str());
@@ -96,70 +137,52 @@ void sus() {
         std::cerr << "Failed to extract frames." << std::endl;
     }
 }
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
-{
-    ChangeUserDesktopWallpaper();
-    char wallpaperPath[MAX_PATH];
 
-    // Get the current desktop wallpaper path
-    if (SystemParametersInfoA(SPI_GETDESKWALLPAPER, MAX_PATH, wallpaperPath, 0))
-    {
-        std::cout << "Current wallpaper: " << wallpaperPath << std::endl;
-    }
-    else
-    {
-        std::cerr << "Failed to retrieve current wallpaper." << std::endl;
-    }
-    
-   
-    // Register the window class.
-    const wchar_t CLASS_NAME[] = L"Sample Window Class";
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    const wchar_t CLASS_NAME[] = L"SampleWindowClass";
 
+    // Register the window class
     WNDCLASS wc = { };
-
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = CLASS_NAME;
-
     RegisterClass(&wc);
 
-    // Create the window.
-     HWND hwnd = CreateWindowEx(
-        0,                              // Optional window styles.
-        CLASS_NAME,                     // Window class
-        L"Learn to Program Windows",    // Window text
-        WS_OVERLAPPEDWINDOW,            // Window style
-
-        // Size and position
-        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-
-        NULL,       // Parent window    
-        NULL,       // Menu
-        hInstance,  // Instance handle
-        NULL        // Additional application data
+    // Create the window with WS_POPUP style (no title bar or borders)
+    HWND hwnd = CreateWindowEx(
+        WS_EX_TOOLWINDOW | WS_EX_TOPMOST,     // ExStyle to prevent showing in taskbar
+        CLASS_NAME,           // Window class
+        L"Main",              // Window text (optional)
+        WS_POPUP,             // Window style (no border or title bar)
+        0, 0,                 // Position
+        GetSystemMetrics(SM_CXSCREEN),  // Width of screen
+        GetSystemMetrics(SM_CYSCREEN),  // Height of screen
+        NULL,                 // Parent window    
+        NULL,                 // Menu
+        hInstance,            // Instance handle
+        NULL                  // Additional application data
     );
 
-    if (hwnd == NULL)
-    {
+    if (hwnd == NULL) {
         return 0;
     }
-
-    ShowWindow(hwnd, nCmdShow);
+    ShowWindow(hwnd, SW_MAXIMIZE);
+    HWND taskbar = FindWindow(L"Shell_TrayWnd", NULL);
+    if (taskbar) {
+        ShowWindow(taskbar, SW_SHOW);
+        SetWindowPos(taskbar, HWND_TOPMOST - 1, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+    }
+    SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
     UpdateWindow(hwnd);
-
-    // Message loop
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0))
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-    
+
+    return 0;
 }
-
-
-
-
 
 void opendabox(HWND hwnd) {
     HRESULT hr;
