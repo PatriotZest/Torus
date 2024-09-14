@@ -24,7 +24,7 @@ HWND image;
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     HWND hButton;
-    static AppState* appState = nullptr;
+    
     switch (uMsg)
     {
     case WM_CREATE:
@@ -50,17 +50,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             MessageBox(hwnd, L"Failed to create 'Open Video' button", L"Error", MB_OK | MB_ICONERROR);
         }
 
-        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)((LPCREATESTRUCT)lParam)->hInstance);
-        appState = new AppState(L"appsettings.ini");
-        appState->RestoreWindowState(hwnd);
         return 0;
 
     case WM_CLOSE:
         if (MessageBox(hwnd, L"Really quit?", L"My application", MB_OKCANCEL) == IDOK)
         {
-            if (appState) {
-                appState->SaveWindowState(hwnd);
-            }
+           
             DestroyWindow(hwnd);
             PostQuitMessage(0);
         }
@@ -107,6 +102,7 @@ void loadImages(HWND hwnd) {
         
 
     }
+    
 }
 
 
@@ -150,7 +146,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     // Create the window with WS_POPUP style (no title bar or borders)
     HWND hwnd = CreateWindowEx(
-        WS_EX_TOOLWINDOW | WS_EX_TOPMOST,     // ExStyle to prevent showing in taskbar
+        WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_APPWINDOW | WS_EX_CLIENTEDGE,     // ExStyle to prevent showing in taskbar
         CLASS_NAME,           // Window class
         L"Main",              // Window text (optional)
         WS_POPUP,             // Window style (no border or title bar)
