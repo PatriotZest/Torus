@@ -22,7 +22,7 @@
 
 
 void loadImages(HWND hwnd, int frameCount);
-void sus(PWSTR videoPath,HWND hwnd);
+void sus(PWSTR videoPath, HWND hwnd);
 void opendabox(HWND hwnd);
 void AddImage(HWND hwnd, HBITMAP hImage);
 std::string ConvertPWSTRToString(PWSTR pWideStr);
@@ -30,8 +30,6 @@ std::string ConvertPWSTRToString(PWSTR pWideStr);
 PWSTR pszFilePath;
 HBITMAP hImage;
 HWND image;
-
-
 bool isControlShiftAlt() {
     return (GetAsyncKeyState(VK_CONTROL) & 0x8000) &&
         (GetAsyncKeyState(VK_SHIFT) & 0x8000) &&
@@ -115,6 +113,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
 }
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     const wchar_t CLASS_NAME[] = L"SampleWindowClass";
 
@@ -140,11 +139,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         NULL                  // Additional application data
     );
 
-    if (hwnd == NULL) {
-        return 0;
-    }
+   
     ShowWindow(hwnd, SW_MAXIMIZE);
-    
+
     SetWindowPos(hwnd, HWND_BOTTOM - 1, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
     UpdateWindow(hwnd);
     MSG msg;
@@ -162,64 +159,65 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             }
         }
     }
-      
+
     return 0;
 }
 
 
 
 void loadImages(HWND hwnd, int frameCount) {
-    wchar_t filePath[256]; 
+    wchar_t filePath[256];
 
-    
-    HWND hButtonOpenFile = GetDlgItem(hwnd, 1); 
-    HWND hButtonOpenVideo = GetDlgItem(hwnd, 2); 
+
+    HWND hButtonOpenFile = GetDlgItem(hwnd, 1);
+    HWND hButtonOpenVideo = GetDlgItem(hwnd, 2);
     ShowWindow(hButtonOpenFile, SW_HIDE);
     ShowWindow(hButtonOpenVideo, SW_HIDE);
+    while (true) {
+        for (int i = 1; i < frameCount; i++) {
+            if (i < 10) {
+                swprintf(filePath, 256, L"Frames/frame_000%d.bmp", i);
+            }
+            else if (i < 100) {
+                swprintf(filePath, 256, L"Frames/frame_00%d.bmp", i);
+            }
+            else if (i < 1000) {
+                swprintf(filePath, 256, L"Frames/frame_0%d.bmp", i);
+            }
+            else {
+                swprintf(filePath, 256, L"Frames/frame_%d.bmp", i);
+            }
 
-    for (int i = 1; i < frameCount; i++) {
-        if (i < 10) {
-            swprintf(filePath, 256, L"C:/logs/frame_000%d.bmp", i); 
-        }
-        else if (i < 100) {
-            swprintf(filePath, 256, L"C:/logs/frame_00%d.bmp", i); 
-        }
-        else if (i < 1000) {
-            swprintf(filePath, 256, L"C:/logs/frame_0%d.bmp", i); 
-        }
-        else {
-            swprintf(filePath, 256, L"C:/logs/frame_%d.bmp", i);
-        }
+            // Load the bitmap
+            HBITMAP hImage = (HBITMAP)LoadImageW(NULL, filePath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+            if (hImage == NULL) {
+                MessageBox(NULL, L"Failed to load image", L"ERROR", MB_OK);
+                continue;
+            }
 
-        // Load the bitmap
-        HBITMAP hImage = (HBITMAP)LoadImageW(NULL, filePath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-        if (hImage == NULL) {
-            MessageBox(NULL, L"Failed to load image", L"ERROR", MB_OK);
-            continue;
-        }
 
-      
-        AddImage(hwnd, hImage);
-        Sleep(13);
-        DeleteObject(hImage);
+            AddImage(hwnd, hImage);
+            Sleep(13);
+            DeleteObject(hImage);
+        }
     }
-
     ShowWindow(hButtonOpenFile, SW_SHOW);
     ShowWindow(hButtonOpenVideo, SW_SHOW);
 
 
     // after ending part:
-    HBITMAP endImage = (HBITMAP)LoadImageW(NULL, L"C:/logs/frame_0684.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+    HBITMAP endImage = (HBITMAP)LoadImageW(NULL, L"Assets/background.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+    AddImage(hwnd, endImage);
 
 }
 
 void AddImage(HWND hwnd, HBITMAP hImage) {
-   
+
     HWND image = CreateWindowW(L"Static", NULL, WS_VISIBLE | WS_CHILD | SS_BITMAP, 0, 0, 100, 100, hwnd, NULL, NULL, NULL);
     if (image) {
         SendMessageW(image, STM_SETIMAGE, IMAGE_BITMAP, (LPARAM)hImage);
-        Sleep(13); 
-        DestroyWindow(image); 
+        Sleep(13);
+        DestroyWindow(image);
     }
 }
 
@@ -280,14 +278,14 @@ void sus(PWSTR videoPath, HWND hwnd) {
     std::string videoFilePath = ConvertPWSTRToString(videoPath);
     std::wstring wstr(videoFilePath.begin(), videoFilePath.end());
     OutputDebugString(wstr.c_str());
-    std::wstring logPath = L"C:/logs";
+    std::wstring logPath = L"Frames";
     if (!DeleteFolderContents(logPath)) {
         MessageBox(hwnd, L"Failed to clear old frames.", L"Torus", MB_OKCANCEL | MB_ICONERROR);
         return;
     }
     // Define output frame path and FFmpeg path
-    std::string outputFramePath = "C:/logs/frame_%04d.bmp";
-    std::string ffmpegPath = "C:/ffmpge/bin/ffmpeg.exe";
+    std::string outputFramePath = "Frames/frame_%04d.bmp";
+    std::string ffmpegPath = "ffmpeg.exe";
 
     // Construct the FFmpeg command
     std::string command = ffmpegPath + " -i \"" + videoFilePath + "\" \"" + outputFramePath + "\"";
@@ -301,7 +299,7 @@ void sus(PWSTR videoPath, HWND hwnd) {
     // Check if the command executed successfully
     if (result == 0) {
         // Check if the frames were actually generated
-        int frameCount = getTotalFrameCount("C:/logs");
+        int frameCount = getTotalFrameCount("Frames");
         if (frameCount > 0) {
             loadImages(hwnd, frameCount);
         }
@@ -321,12 +319,12 @@ void sus(PWSTR videoPath, HWND hwnd) {
 void opendabox(HWND hwnd) {
     HRESULT hr;
     hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);  // has to be null always
-    
+
     if (SUCCEEDED(hr)) {
         IFileOpenDialog* pFileOpen;
         hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
-        
-        
+
+
         if (SUCCEEDED(hr)) {
             // To show the box
             hr = pFileOpen->Show(hwnd);
@@ -338,7 +336,7 @@ void opendabox(HWND hwnd) {
                 if (SUCCEEDED(hr)) {
                     hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
                     if (SUCCEEDED(hr)) {
-                        sus(pszFilePath,hwnd);
+                        sus(pszFilePath, hwnd);
                         CoTaskMemFree(pszFilePath);
                     }
                     pItem->Release();
@@ -352,26 +350,4 @@ void opendabox(HWND hwnd) {
 
 
 
-
-
-void ChangeUserDesktopWallpaper() {
-
-
-    char narrowPath[256];
-
-    for (int i{ 1 }; i < 873; i++) {
-        // Format the path for the current frame
-        if (i < 10) {
-            std::sprintf(narrowPath, "C:/logs/frame_000%d.png", i);
-        }
-        else if (i < 100) {
-            std::sprintf(narrowPath, "C:/logs/frame_00%d.png", i);
-        }
-        else {
-            std::sprintf(narrowPath, "C:/logs/frame_0%d.png", i);
-        }
-
-
-    }
-}
 
